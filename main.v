@@ -41,10 +41,10 @@ Fixpoint construct_undir_graph (n: nat) (edge_list : list Edge): Graph :=
     | (cons (u,v) edge_list1) => add_edge (add_edge (construct_undir_graph n edge_list1) u v) v u
     end.
 
-Fixpoint construct_bidir_graph (n: nat) (edge_list : list Edge): Graph := 
+Fixpoint construct_dir_graph (n: nat) (edge_list : list Edge): Graph := 
     match edge_list with 
     | nil => (construct_empty_graph n)
-    | (cons (u,v) edge_list1) => add_edge (construct_bidir_graph n edge_list1) u v
+    | (cons (u,v) edge_list1) => add_edge (construct_dir_graph n edge_list1) u v
     end.
 
 Example null_graph:=
@@ -65,7 +65,7 @@ Proof.
 Qed.
 
 Example one_line:=
-    construct_bidir_graph 2 [(1,2)].
+    construct_dir_graph 2 [(1,2)].
 Example one_line_is_correct:
     one_line = [(2,[]);(1,[2])].
 Proof.
@@ -149,7 +149,7 @@ Proof.
 Qed.
 
 Example one_line_one_node:=
-    construct_bidir_graph 3 [(1,2)].
+    construct_dir_graph 3 [(1,2)].
 
 Example one_line_one_node_is_not_connected:
     not (is_connected one_line_one_node).
@@ -157,17 +157,19 @@ Proof.
     simpl. auto.
 Qed.
 
-Fixpoint get_reachable_nodes_helper (g:Graph) (list_u: list Node): (list Node) :=
+(* Fixpoint is_reachable_in_k_steps (u v: Node) (k: nat): Prop :=
+    match k with
+    | 0 => if (Nat.eqb u v) then True else False
+    | S => 
+Fixpoint get_reachable_nodes_helper (g:Graph) (list_u: list Node) (list_seen : list Node): (list Node) :=
     match list_u with 
     | nil => nil
-    | v::l => let rest := (get_reachable_nodes_helper g l ) in 
-                match get_actual_neighbors g v with
-                    | nil => v::rest
-                    | nl => (v::(get_reachable_nodes_helper g nl))++rest
-                end
+    | v::l => if (existsb (Nat.eqb v) list_seen)
+                    then (get_reachable_nodes_helper g l list_seen)
+                else v::(get_reachable_nodes_helper g ((get_actual_neighbors g v) ++ l ) (v::list_seen))
     end.
 
-Fixpoint is_cyclic_bidirec (g: Graph) : Prop :=
+Fixpoint is_cyclic_direc (g: Graph) : Prop := *)
 
 
 
