@@ -171,7 +171,57 @@ Fixpoint get_reachable_nodes_helper (g:Graph) (list_u: list Node) (list_seen : l
 
 Fixpoint is_cyclic_direc (g: Graph) : Prop := *)
 
+(* Size of the Graph *)
+Fixpoint get_size (g : Graph) : nat :=
+  match g with
+  | nil => 0
+  | (v, _) :: g' => 1 + get_size g'
+  end.
 
+Definition example_graph1 := [(1, [2; 3]); (2, [1; 3]); (3, [1; 2])].
+Example example_graph1_size : get_size example_graph1 = 3.
+Proof. reflexivity. Qed.
+  
+Definition example_graph2 := [(1, []); (2, [1])].
+Example example_graph2_size : get_size example_graph2 = 2.
+Proof. reflexivity. Qed.
 
+(* Non Connected graph *)
+Definition example_graph3 := [(1, []); (3, []); (2, [3])].
+Example example_graph3_size : get_size example_graph3 = 3.
+Proof. reflexivity. Qed.
 
+Definition example_graph4: Graph := nil.
+Example example_graph4_size : get_size example_graph4 = 0.
+Proof. reflexivity. Qed.
+
+(* 
+    TO Calculate the diameter of the graph 
+    We just assume that the diameter will be calculated only for connected graphs. ??
+    Diameter = longest shortest path between any 2 pair of nodes
+    - need the shortest distance between all pair of nodes
+    - Then need the max value among all those
+*)
+
+(* 
+    BFS to find the shortest path from source to target
+    Returns a nat which is the shortest distance between source and target
+    or returns None if there is no path
+*)
+
+Fixpoint bfs_helper (g : Graph) (queue : list (list Node)) (visited : list Node) (distance : nat) (target : Node) : option nat :=
+  match queue with
+  | [] => None
+  | path :: queue' =>
+    let cur := hd 0 path in
+    if Nat.eqb cur target then Some distance
+    else if existsb (Nat.eqb cur) visited then bfs_helper g queue' visited distance target
+    else let neighbors := get_all_neighbors g cur in
+         let new_paths := map (fun n => n :: path) neighbors in
+         let queue'' := (queue' ++ new_paths) in
+         bfs_helper g queue'' (cur :: visited) (S distance) target
+  end.
+
+Definition bfs_shortest_path_distance (g : Graph) (source target : Node) : option nat :=
+  bfs_helper g [[source]] [] 0 target.
 
