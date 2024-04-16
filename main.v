@@ -1,6 +1,6 @@
 Require Import String Arith List Lia.
 Import ListNotations.
-Open Scope string_scope.
+(* Open Scope string_scope. *)
 Module Part1.
 (* ToDo: Should Node be [Definition Node] or [Notation Node]? Check HW1 to see what I am talking about *)
 Notation Node := nat.
@@ -93,14 +93,14 @@ Fixpoint get_all_neighbors (g: Graph) (u : Node): (list Node):=
                     else n1
     end.
 
-Fixpoint get_actual_neighbors (g: Graph) (u : Node): (list Node):=
+Fixpoint get_children (g: Graph) (u : Node): (list Node):=
     match g with
     | nil => nil
     | (v,e)::g1 => 
                 if (Nat.eqb u v) 
                     then e 
                 else
-                    get_actual_neighbors g1 u
+                    get_children g1 u
     end.
 
 
@@ -111,13 +111,13 @@ Proof.
 Qed.
 
 Example actual_nghbrs_of_1_in_one_line:
-    get_actual_neighbors one_line 1 = [2].
+    get_children one_line 1 = [2].
 Proof.
     simpl. auto.
 Qed.
 
 Example actual_nghbrs_of_2_in_one_line:
-    get_actual_neighbors one_line 2 = nil.
+    get_children one_line 2 = nil.
 Proof.
     simpl. auto.
 Qed.
@@ -171,7 +171,9 @@ Fixpoint get_reachable_nodes_helper (g:Graph) (list_u: list Node) (list_seen : l
 
 Fixpoint is_cyclic_direc (g: Graph) : Prop := *)
 
-(* Size of the Graph *)
+(* --------------------------------------------- *)
+
+(* Size of the Graph: Number of Nodes in the Graph *)
 Fixpoint get_size (g : Graph) : nat :=
   match g with
   | nil => 0
@@ -195,13 +197,93 @@ Definition example_graph4: Graph := nil.
 Example example_graph4_size : get_size example_graph4 = 0.
 Proof. reflexivity. Qed.
 
+(* Implementing degrees of vertices *)
+Fixpoint degree (g : Graph) (v : Node) : nat :=
+  match g with
+  | [] => 0
+  | (u, neighbors) :: rest =>
+    if Nat.eqb u v then length neighbors
+    else degree rest v
+  end.
+
+(* Some example *)
+Example degree_example_1 : degree [(1, [2; 3]); (2, [1; 3]); (3, [1; 2])] 1 = 2.
+Proof.
+    reflexivity.
+Qed.
+
+Example degree_example_2 : degree [(1, [2; 3]); (2, [1; 3; 4; 5]); (3, [1; 2])] 2 = 4.
+Proof.
+    reflexivity.
+Qed.
+
+(* Lemma: Degree of vertices of an empty graph is always 0 *)
+Lemma degree_empty_graph : forall v, degree [] v = 0.
+Proof.
+    intros v. reflexivity.
+Qed.
+
+(* Lemma: Degree of vertices of a single vertex is always 0 *)
+Lemma degree_single_vertex : forall v u, v <> u -> degree [(u, [])] v = 0.
+Proof.
+    intros v u H. simpl. destruct (Nat.eqb_spec u v); auto.
+Qed.
+
+(* Lemma: Degree of vertices is always positive *)
+Lemma degree_positive : forall g v,
+  0 <= degree g v.
+Proof.
+    intros.
+    induction g.
+    - simpl. lia.
+    - simpl. destruct a as[u neighbors].
+        * apply Nat.le_0_l.     
+Qed.
+
+
+(* The degree of vertices of a graph increases when we add an edge *)
+Lemma degree_add_edge : forall g v1 v2 v,
+  In v (fst (split g)) ->
+  (v = v1 \/ v = v2) -> degree (add_edge g v1 v2) v = S (degree g v).
+Proof.
+Admitted.
+
+(* NOTE Can add more such lemmas like adding an edge does not disconnect the graph, ... *)
+(* Property: The sum of degrees in an undirected graph equals twice the number of edges *)
+
+
+(* //////////////////////// BFS and Diameter below //////////////////////*)
+
 (* 
-    TO Calculate the diameter of the graph 
+    TO Calculate the DIAMETER of the graph 
     We just assume that the diameter will be calculated only for connected graphs. ??
     Diameter = longest shortest path between any 2 pair of nodes
     - need the shortest distance between all pair of nodes
     - Then need the max value among all those
 *)
+
+(* Random Notes for BFS 
+    do the fuel implementation: 
+    1. can just do if it returns x then x is the right answer --> so can do that 
+    fuel is at a certain equal to the number of nodes in the graph 
+    if I am showing that they are very specific element then would have to deal with the case 
+    and prove for completeness where if it returns None then what is it because the fuel runs out 
+    or just when fuel is empty why this can never be the case
+*)
+
+(* Fixpoint bfs_helper_measure (g : Graph) (queue : list (list Node)) (visited : list Node) (distance : nat) (target : Node) : nat :=
+  length queue.
+
+Lemma bfs_helper_measure_decreasing : forall g queue visited distance target,
+  length (queue) > length (queue ++ []) ->
+  bfs_helper_measure g queue visited distance target > bfs_helper_measure g (queue ++ []) visited distance target.
+Proof.
+  intros.
+  rewrite app_length in H.
+  simpl in H.
+  lia.
+Qed. *)
+
 
 (* 
     BFS to find the shortest path from source to target
@@ -209,19 +291,106 @@ Proof. reflexivity. Qed.
     or returns None if there is no path
 *)
 
-Fixpoint bfs_helper (g : Graph) (queue : list (list Node)) (visited : list Node) (distance : nat) (target : Node) : option nat :=
+(* Fixpoint bfs_helper (g : Graph) (queue : list (list Node)) (visited : list Node) (distance : nat) 
+(target : Node): option nat :=
   match queue with
   | [] => None
   | path :: queue' =>
     let cur := hd 0 path in
     if Nat.eqb cur target then Some distance
     else if existsb (Nat.eqb cur) visited then bfs_helper g queue' visited distance target
-    else let neighbors := get_all_neighbors g cur in
+    else let neighbors := get_children g cur in
          let new_paths := map (fun n => n :: path) neighbors in
          let queue'' := (queue' ++ new_paths) in
          bfs_helper g queue'' (cur :: visited) (S distance) target
+  end. *)
+
+(* Fixpoint bfs_helper (g : Graph) (queue : list (list Node)) (visited : list Node)
+  (distance : nat) (target : Node) (termination_counter : nat): option nat :=
+    match termination_counter with
+    | O => None
+    | S n =>
+        match queue with
+            | [] => None
+            | path :: queue' =>
+                let cur := hd 0 path in
+                (* let num_nodes_visited := length path in *)
+                if Nat.eqb cur target then Some distance
+                else if existsb (Nat.eqb cur) visited then bfs_helper g queue' visited distance target (S n)
+                else let neighbors := get_all_neighbors g cur in
+                let new_paths := map (fun n => n :: path) neighbors in
+                let queue'' := queue' ++ new_paths in
+                bfs_helper g queue'' (cur :: visited) (S distance) target n
+        end
+end. *)
+
+
+(* Definition bfs_shortest_path_distance (g : Graph) (source target : Node) : option nat :=
+    bfs_helper g [[source]] [] 0 target get_size(g). *)
+
+(* Fixpoint termination_helper (v: valuation) (c: cmd) (counter: nat) : valuation * cmd :=
+match counter with
+    | O => (v, c)
+    | S counter =>
+        match eval_cmd_once v c with
+            | Some (v', c') => eval_cmd_n v' c' fuel
+            | None => (v, c)
+        end
+end. *)
+
+(* Function to get all pairs of nodes *)
+Fixpoint all_pairs (l : list Node) : list (Node * Node) :=
+  match l with
+  | nil => nil
+  | x :: xs => map (pair x) xs ++ all_pairs xs
   end.
 
-Definition bfs_shortest_path_distance (g : Graph) (source target : Node) : option nat :=
-  bfs_helper g [[source]] [] 0 target.
+  Example example_1: all_pairs [1; 2; 3] = [(1, 2); (1, 3); (2, 3)].
+  Proof. reflexivity. Qed.
+  
+  Example example_2: all_pairs [4; 5] = [(4, 5)].
+  Proof. reflexivity. Qed.
+  
+  Example example_3: all_pairs [6] = [].
+  Proof. reflexivity. Qed.
 
+
+Definition diameter (g : Graph) (nodes : list Node) : nat :=
+    match nodes with
+    | nil => None
+    | _ =>
+      let distances := map (fun p => bfs_shortest_path_distance g (fst p) (snd p)) (all_pairs nodes) in
+      let max_distance := fold_left (fun d opt_dist => match opt_dist with Some dist => max d dist | None => d end) distances 0 in
+      Some max_distance
+    end.
+
+
+(* Function to calculate the diameter of a graph *)
+Definition diameter (g : Graph) : nat :=
+    let dist_from_source (source : Node) :=
+      let rec bfs (queue : list (Node * nat)) (visited : list Node) : nat :=
+        match queue with
+        | [] => O
+        | (cur, d) :: queue' =>
+          if existsb (Nat.eqb cur) visited then bfs queue' visited
+          else let neighbors := get_all_neighbors g cur in
+               let new_queue := queue' ++ map (fun n => (n, S d)) neighbors in
+               bfs new_queue (cur :: visited)
+        end
+      in bfs [(source, O)] []
+    in let all_nodes := map fst g in
+       let distances := map dist_from_source all_nodes in
+       fold_right max 0 distances.
+  
+  (* Some Examples to start with *)
+  
+  Example one_line :=
+    construct_undir_graph 2 [(1, 2)].
+  
+  Example null_graph :=
+    construct_undir_graph 0 nil.
+
+  Compute (diameter one_line). (* Output: 1 *)
+  Compute (diameter null_graph). (* Output: 0 *)
+  
+  (* Add some proofs for bfs and diameter *)
