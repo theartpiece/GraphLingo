@@ -355,18 +355,18 @@ Fixpoint all_pairs (l : list Node) : list (Node * Node) :=
   Proof. reflexivity. Qed.
 
 
-Definition diameter (g : Graph) (nodes : list Node) : nat :=
+(* Definition diameter (g : Graph) (nodes : list Node) : nat :=
     match nodes with
     | nil => None
     | _ =>
       let distances := map (fun p => bfs_shortest_path_distance g (fst p) (snd p)) (all_pairs nodes) in
       let max_distance := fold_left (fun d opt_dist => match opt_dist with Some dist => max d dist | None => d end) distances 0 in
       Some max_distance
-    end.
+    end. *)
 
 
 (* Function to calculate the diameter of a graph *)
-Definition diameter (g : Graph) : nat :=
+(* Definition diameter (g : Graph) : nat :=
     let dist_from_source (source : Node) :=
       let rec bfs (queue : list (Node * nat)) (visited : list Node) : nat :=
         match queue with
@@ -380,11 +380,11 @@ Definition diameter (g : Graph) : nat :=
       in bfs [(source, O)] []
     in let all_nodes := map fst g in
        let distances := map dist_from_source all_nodes in
-       fold_right max 0 distances.
+       fold_right max 0 distances. *)
   
   (* Some Examples to start with *)
   
-  Example one_line :=
+  (* Example one_line :=
     construct_undir_graph 2 [(1, 2)].
   
   Example null_graph :=
@@ -392,5 +392,227 @@ Definition diameter (g : Graph) : nat :=
 
   Compute (diameter one_line). (* Output: 1 *)
   Compute (diameter null_graph). (* Output: 0 *)
-  
+   *)
   (* Add some proofs for bfs and diameter *)
+
+
+
+
+
+
+(*=============== DFS ==================*)
+
+(*  Small Step Semantics Definition of DFS *)
+
+(* 
+    Defines 3 different kinds of steps
+    -  A node that has already been visited
+    -  A node that has not yet been visited
+    -  DFS Initialization
+*)
+Inductive DfsStep : Graph * list Node * list Node -> Graph * list Node * list Node -> Prop :=
+| DfsStepVisited : forall g vis st v,
+    ~ In v vis -> DfsStep (g, vis, v :: st) (g, v :: vis, (get_children g v) ++ st)
+| DfsStepVisit : forall g vis st v,
+    In v vis -> DfsStep (g, vis, v :: st) (g, vis, st)
+| DfsStepStart : forall g v,
+    DfsStep (g, [], []) (g, [], [v]).
+
+(* 
+    Defines the properties of the small step semantics
+    -  Reflexivity
+    -  Transitivity
+*)
+Inductive DfsStepStar : Graph * list Node * list Node -> Graph * list Node * list Node -> Prop :=
+| DfsStepRefl : forall g vis st,
+    DfsStepStar (g, vis, st) (g, vis, st)
+| DfsStepStarOnce : forall g vis1 vis2 vis3 st1 st2 st3,
+    DfsStep (g, vis1, st1) (g, vis2, st2) -> DfsStepStar (g, vis2, st2) (g, vis3, st3) -> DfsStepStar (g, vis1, st1) (g, vis3, st3).
+    
+(* 
+    Now let us verify that the small step semantics defined above works on some sample graphs
+
+    Consider a graph with the following adjacency list. The graph has been illustrated below for further clarity.
+        1: 2, 5
+        2: 3, 7
+        3: 4
+        4: 9
+        5: 7
+        6: 8
+        7:
+        8:
+        9:
+
+        1 --> 2 --> 3 --> 4 --> 9
+        |     |     ^              
+        v     v     |              
+        5 --> 7 ----+              
+            
+        6 --> 8
+*)
+
+Definition sample_graph := 
+    construct_dir_graph 9 [(1,2); (1,5); (2,3); (2,7); (3,4); (4,9); (5,7); (7,3); (6,8)].
+
+Example dfs_step_identity:
+    DfsStep(sample_graph,[],[1])(sample_graph,[1],[2;5]).
+Proof.
+    econstructor. auto.
+Qed.
+
+Example dfs_identity_step_star:
+    DfsStepStar(sample_graph,[],[1])(sample_graph,[1],[2;5]).
+Proof.
+    repeat econstructor. auto.
+Qed.
+
+Lemma dfs_step_from_one_to_four:
+    exists vis st, DfsStepStar(sample_graph, [], [1])(sample_graph, 4::vis, st).
+Proof.
+    repeat econstructor. 
+    - auto.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+Qed.
+
+Lemma dfs_step_from_five_to_nine:
+    exists vis st, DfsStepStar(sample_graph, [], [5])(sample_graph, 9::vis, st).
+Proof.
+    repeat econstructor. 
+    - auto.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+    - unfold not. simpl. intros. destruct H. lia. lia.
+Qed.
+
+
+
+(* 
+    Next we define a fuel based implementation of the dfs algorithm
+*)
+
+Fixpoint dfs_helper (g : Graph) (visited stack : list Node) (fuel : nat) : list Node :=
+  match fuel with
+  | 0 => visited
+  | S fuel' =>
+      match stack with
+      | [] => visited
+      | vertex :: rem =>
+          if (existsb (Nat.eqb vertex) visited)
+            then dfs_helper g visited rem fuel'
+            else dfs_helper g ([vertex] ++ visited) ((get_children g vertex) ++ rem) fuel'
+      end
+  end.
+
+Definition dfs (g : Graph) (start : Node) : list Node :=
+    dfs_helper g [] [start] (length g).
+
+(* 
+    Again, let us verify the behavious of the fuel based definition of DFS
+    Consider the sample graph from above.
+
+    1 --> 2 --> 3 --> 4 --> 9
+        |     |     ^              
+        v     v     |              
+        5 --> 7 ----+              
+            
+        6 --> 8
+*)
+
+Lemma dfs_from_one_visits_one:
+    In 1 (dfs sample_graph 1).
+Proof.
+    simpl. lia.
+Qed.
+
+Lemma dfs_from_one_visits_four:
+    In 4 (dfs sample_graph 1).
+Proof.
+    simpl. lia.
+Qed.
+
+Lemma dfs_from_five_visits_nine:
+    In 5 (dfs sample_graph 1).
+Proof.
+    simpl. lia.
+Qed.
+
+Lemma dfs_from_five_does_not_visit_nine:
+    ~ In 6 (dfs sample_graph 5).
+Proof.
+    simpl. unfold not. intros. 
+    destruct H. lia.
+    destruct H. lia.
+    destruct H. lia.
+    destruct H. lia.
+    destruct H. lia.
+    destruct H.
+Qed.
+
+Theorem dfs_implies_dfs_step: 
+    forall g start v, In v (dfs_helper g [start] [] 1) -> exists visited stack, DfsStepStar(g, [], [start])(g, v::visited, stack).
+Proof.
+    intros. simpl in H. destruct H. rewrite H. repeat econstructor. auto. lia.    
+Qed.
+
+(* 
+    Here, we prove that our step semantics for DFS only visits a node one time.
+
+    First, we define a helper lemma that helps us reason about lists.
+*)
+
+Lemma not_cons_self : forall (A : Type) (x : A) (l : list A), l <> x :: l.
+Proof.
+intros A x l.
+intro H.
+induction l as [| y l' IHl].
+- discriminate H. 
+- injection H as H1 H2. rewrite H1 in H2.
+  apply IHl in H2.
+  contradiction.
+Qed.
+
+
+(* 
+    The below theorem shows that any step dfs takes must result in only new values being added to visited.
+*)
+
+Theorem dfs_step_has_unique_values_in_visited:
+    forall g v visited stack stack', DfsStep(g, visited, stack)(g, v::visited, stack') -> ~ In v visited.
+Proof.
+    intros. repeat econstructor. 
+    intro. inversion H. subst. 
+    - contradiction. 
+    - apply not_cons_self in H5. contradiction. 
+Qed.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Theorem dfs_implies_dfs_step_new: 
+    forall g start v fuel, 
+    In v (dfs_helper g [] [start] fuel) -> exists visited stack, DfsStepStar(g, [], [start])(g, v::visited, stack).
+
+
+Proof.
+    intros. induction fuel.
+    - destruct H.
+    - simpl in H. induction IHfuel. inversion H0.  
+Admitted.
+
+
