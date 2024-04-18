@@ -510,10 +510,10 @@ Definition dfs (g : Graph) (start : Node) : list Node :=
     dfs_helper g [] [start] (length g).
 
 (* 
-    Again, let us verify the behavious of the fuel based definition of DFS
+    Again, let us verify the behaviour of the fuel based definition of DFS
     Consider the sample graph from above.
 
-    1 --> 2 --> 3 --> 4 --> 9
+        1 --> 2 --> 3 --> 4 --> 9
         |     |     ^              
         v     v     |              
         5 --> 7 ----+              
@@ -588,7 +588,99 @@ Proof.
     - apply not_cons_self in H5. contradiction. 
 Qed.
 
+(* 
+    Shortest Path Between nodes A and B
+    
+    We now define a function that computes the shortest path between 2 nodes A nd B in a graph
+    
+    It does this by iteratively checking the shortest path to the destination from all of 
+    the neighbour's of the source and choosing the minimum of those paths. 
 
+    It does this recursively until it gets the shortes path if such a path exists
+
+*)
+
+Fixpoint shortest_path_helper (g: Graph) (srcs : list Node) (dst: Node) (visited: list Node) (fuel: nat): list Node  :=
+  match fuel with
+  | 0 => []
+  | S fuel' =>
+    match srcs with
+    | [] => []
+    | src :: xsrcs => (
+        let min_rest_path := (shortest_path_helper g xsrcs dst visited fuel') in
+        let curr_path := src::(shortest_path_helper g (get_children g src) dst (src::visited) fuel') in
+        if (Nat.eqb src dst) then
+            [src]
+        else if (existsb (Nat.eqb src) visited) then
+            min_rest_path
+        else if (Nat.eqb (length min_rest_path) 0) then
+            curr_path
+        else if (Nat.leb (length min_rest_path) (length curr_path)) then
+            min_rest_path
+        else
+            curr_path
+    )
+    end
+  end.
+
+(* Compute shortest_path_helper another_sample_graph (get_children another_sample_graph 3) 8 [3] 99. *)
+(* Compute shortest_path_helper another_sample_graph [1] 8 [] 99. *)
+
+Definition shortest_path (g: Graph) (src: Node) (dst: Node) : list Node :=
+    let path := (shortest_path_helper g [src] dst [] ((length g)*(length g))) in
+    match rev path with 
+    | v::l => if (Nat.eqb v dst) then   
+                path
+              else  
+                []
+    | _ => []
+    end.
+
+
+(* 
+    We verify the working of the shortest path computation using the following sample graph
+    1---2---3
+    |\  |   |
+    | \ |   |
+    4   5   |
+    |   |   |
+    6---7---8
+        |   
+        9
+*)
+
+Definition another_sample_graph := 
+    construct_dir_graph 9 [(1,2); (1,5); (1,4); (2,3); (2,5); (3,8); (4,6); (5,7); (6,7); (7,8); (7,9)].
+
+Lemma shortest_path_from_one_to_one:
+    (shortest_path another_sample_graph 1 1) = [1].
+Proof.
+    auto.
+Qed.
+
+Lemma shortest_path_from_one_to_three:
+    (shortest_path another_sample_graph 1 3) = [1;2;3].
+Proof.
+    auto.
+Qed.
+
+Lemma shortest_path_from_one_to_seven:
+    (shortest_path another_sample_graph 1 7) = [1;5;7].
+Proof.
+    auto.
+Qed.
+
+Lemma shortest_path_from_one_to_eight:
+    (shortest_path another_sample_graph 1 8) = [1;5;7;8].
+Proof.
+    auto.
+Qed.
+
+Lemma shortest_path_from_five_to_one:
+    (shortest_path another_sample_graph 5 1) = [].
+Proof.
+    auto.
+Qed.
 
 
 
@@ -607,8 +699,6 @@ Qed.
 Theorem dfs_implies_dfs_step_new: 
     forall g start v fuel, 
     In v (dfs_helper g [] [start] fuel) -> exists visited stack, DfsStepStar(g, [], [start])(g, v::visited, stack).
-
-
 Proof.
     intros. induction fuel.
     - destruct H.
