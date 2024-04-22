@@ -493,21 +493,20 @@ Qed.
       Next we define a fuel based implementation of the dfs algorithm
 *)
 
-Fixpoint dfs_helper (g : Graph) (visited stack : list Node) (fuel : nat) : list Node :=
+Fixpoint dfs_helper (g : Graph) (start: Node) (fuel : nat) (visited : list Node) : list Node :=
     match fuel with
     | 0 => visited
     | S fuel' =>
-          match stack with
-          | [] => visited
-          | vertex :: rem =>
-                if (existsb (Nat.eqb vertex) visited)
-                  then dfs_helper g visited rem fuel'
-                  else dfs_helper g ([vertex] ++ visited) ((get_children g vertex) ++ rem) fuel'
-          end
+          if (existsb (Nat.eqb start) visited)
+			then visited
+			else 
+			let visited' := start :: visited in 
+			let children := get_children g start in
+			fold_right (fun v acc => dfs_helper g v fuel' acc) visited' children
     end.
 
 Definition dfs (g : Graph) (start : Node) : list Node :=
-      dfs_helper g [] [start] ((length g)*(length g)).
+      dfs_helper g start (length g) [].
 
 (* 
       Again, let us verify the behaviour of the fuel based definition of DFS
@@ -551,12 +550,6 @@ Proof.
       destruct H.
 Qed.
 
-Theorem dfs_implies_dfs_step: 
-      forall g start v, In v (dfs_helper g [start] [] 1) -> exists visited stack, DfsStepStar(g, [], [start])(g, v::visited, stack).
-Proof.
-      intros. simpl in H. destruct H. rewrite H. repeat econstructor. auto. lia.      
-Qed.
-
 (* 
       Here, we prove that our step semantics for DFS only visits a node one time.
 
@@ -587,6 +580,19 @@ Proof.
       - contradiction. 
       - apply not_cons_self in H5. contradiction. 
 Qed.
+
+
+Definition only_one_occurrence (x : Node) (lst : list Node) : Prop :=
+  forall y, In y lst -> x = y -> forall z, In z lst -> x = z.
+
+
+Theorem dfs_has_unique_values_in_visited: 
+      forall g start v, let visited:= (dfs g start) in In v visited -> only_one_occurrence v visited.
+Proof.
+      intros. unfold only_one_occurrence. subst visited in H.
+      
+Qed.
+
 
 
 (* 
