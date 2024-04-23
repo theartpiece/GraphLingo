@@ -311,6 +311,44 @@ Definition example_graph2 := construct_dir_graph 2 [(1, 2)].
 Example example_graph2_size : get_size example_graph2 = 2.
 Proof. reflexivity. Qed.
 
+
+(* Function to check if two lists contain the same elements *)
+Fixpoint check_if_list_equal (l1 l2 : list Node) : bool :=
+  match l1, l2 with
+  | [], [] => true
+  | x :: xs, y :: ys =>
+    if Nat.eqb x y then check_if_list_equal xs ys else false
+  | _, _ => false
+  end.
+
+(* Graph Symmetricity: Preserving vertex edge connectivity *)
+Definition graphs_symmetric (g1 g2 : Graph) : bool :=
+  if Nat.eqb (length g1) (length g2) then
+    (* For each node in g1, the neighbors have to be same with g2 *)
+    (* forallb checks if true all elems of a list *)
+    forallb (fun '(n1, neighbors1) =>
+      match find (fun '(n2, _) => Nat.eqb n1 n2) g2 with
+      | Some (_, neighbors2) => check_if_list_equal neighbors1 neighbors2
+      | None => false
+      end
+    ) g1
+  else
+    false. (* Graphs have different number of nodes so return false right away *)
+
+(* Examples Check *)
+Definition g1 : Graph := construct_undir_graph 3 [(1, 2); (1, 2); (2, 3)].
+Definition g2 : Graph := construct_undir_graph 4 [(1, 2); (1, 2); (2, 3); (3, 4)].
+Definition g3: Graph := construct_undir_graph 3 [(1, 2); (1, 2); (2, 3)].
+Definition g4 : Graph := construct_undir_graph 3 [(1, 2); (1, 3); (2, 3)].
+
+Example symmetricity_size_differ_check : graphs_symmetric g1 g2 = false.
+Proof. reflexivity. Qed.
+Example symmetricity_check_same_neighbors : graphs_symmetric g1 g3 = true.
+Proof. reflexivity. Qed.
+Example symmetricity_check_diff_neighbors : graphs_symmetric g1 g4 = false.
+Proof. reflexivity. Qed.
+
+
 (* Non Connected graph *)
 Definition example_graph3 := construct_dir_graph 3 [(2, 3)].
 Example example_graph3_size : get_size example_graph3 = 3.
