@@ -410,7 +410,7 @@ Definition is_connected_ind (g: Graph) : Prop :=
 
 
 Definition is_tree (g: Graph):
-    is_forest g /\ is_connected_ind g.
+    is_forest g /\   g.
 
 
 
