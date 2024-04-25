@@ -652,39 +652,143 @@ Fixpoint all_pairs (l : list Node) : list (Node * Node) :=
   Example example_3: all_pairs [6] = [].
   Proof. reflexivity. Qed.
 
-(* Shortest Path Definition *)
-  Fixpoint shortest_path_helper (g: Graph) (srcs : list Node) (dst: Node) (visited: list Node) (fuel: nat): list Node  :=
-  match fuel with
-  | 0 => []
-  | S fuel' =>
-    match srcs with
-    | [] => []
-    | src :: xsrcs => (
-        let min_rest_path := (shortest_path_helper g xsrcs dst visited fuel') in
-        let curr_path := src::(shortest_path_helper g (get_children g src) dst (src::visited) fuel') in
-        if (Nat.eqb src dst) then
-            [src]
-        else if (existsb (Nat.eqb src) visited) then
-            min_rest_path
-        else if (Nat.eqb (length min_rest_path) 0) then
-            curr_path
-        else if (Nat.leb (length min_rest_path) (length curr_path)) then
-            min_rest_path
-        else
-            curr_path
-    )
-    end
-  end.
+(* 
+      Shortest Path Between nodes A and B
+      
+      We now define a function that computes the shortest path between 2 nodes A nd B in a graph
+      
+      It does this by iteratively checking the shortest path to the destination from all of 
+      the neighbour's of the source and choosing the minimum of those paths. 
+
+      It does this recursively until it gets the shortes path if such a path exists
+
+*)
+
+Fixpoint shortest_path_helper (g: Graph) (srcs : list Node) (dst: Node) (visited: list Node) (fuel: nat): list Node :=
+    match fuel with
+    | 0 => []
+    | S fuel' =>
+      match srcs with
+      | [] => []
+      | src :: xsrcs => (
+            let min_rest_path := (shortest_path_helper g xsrcs dst visited fuel') in
+            let curr_path := src::(shortest_path_helper g (get_children g src) dst (src::visited) fuel') in
+            if (Nat.eqb src dst) then
+                  [src]
+            else if (existsb (Nat.eqb src) visited) then
+                  min_rest_path
+            else if (Nat.eqb (length min_rest_path) 0) then
+                  curr_path
+            else if (Nat.leb (length min_rest_path) (length curr_path)) then
+                  min_rest_path
+            else
+                  curr_path
+      )
+      end
+    end.
+
+(* Compute shortest_path_helper another_sample_graph (get_children another_sample_graph 3) 8 [3] 99. *)
+(* Compute shortest_path_helper another_sample_graph [1] 8 [] 99. *)
 
 Definition shortest_path (g: Graph) (src: Node) (dst: Node) : list Node :=
-    let path := (shortest_path_helper g [src] dst [] ((length g)*(length g))) in
-    match rev path with 
-    | v::l => if (Nat.eqb v dst) then   
-                path
-              else  
-                []
-    | _ => []
-    end.
+      let path := (shortest_path_helper g [src] dst [] ((length g)*(length g))) in
+      match rev path with 
+      | v::l => if (Nat.eqb v dst) then    
+                        path
+                      else  
+                        []
+      | _ => []
+      end.
+
+
+(* 
+      We verify the working of the shortest path computation using the following sample graph
+      1---2---3
+      |\  |    |
+      | \ |    |
+      4    5    |
+      |    |    |
+      6---7---8
+            |    
+            9
+*)
+
+Definition another_sample_graph := 
+      construct_dir_graph 9 [(1,2); (1,5); (1,4); (2,3); (2,5); (3,8); (4,6); (5,7); (6,7); (7,8); (7,9)].
+
+Lemma shortest_path_from_one_to_one:
+      (shortest_path another_sample_graph 1 1) = [1].
+Proof.
+      auto.
+Qed.
+
+Lemma shortest_path_from_one_to_three:
+      (shortest_path another_sample_graph 1 3) = [1;2;3].
+Proof.
+      auto.
+Qed.
+
+Lemma shortest_path_from_one_to_seven:
+      (shortest_path another_sample_graph 1 7) = [1;5;7].
+Proof.
+      auto.
+Qed.
+
+Lemma shortest_path_from_one_to_eight:
+      (shortest_path another_sample_graph 1 8) = [1;5;7;8].
+Proof.
+      auto.
+Qed.
+
+(* 
+	Here we try to prove that the shortest path from a node to itself uses only one node
+*)
+
+Lemma shortest_path_from_five_to_one:
+      (shortest_path another_sample_graph 5 1) = [].
+Proof.
+      auto.
+Qed.
+
+Lemma a_greater_than_1_implies_a_star_a_greater_than_1:
+    forall (a: nat), a >= 1 -> (a*a) >= 1.
+Proof.
+    intros. assert (1 = 1*1) as Hx. auto. rewrite Hx. 
+    apply Nat.mul_le_mono. auto. auto.
+Qed.
+
+Lemma equality_of_decidable_nat:
+    forall (n: nat), (n =? n) = true.
+Proof.
+    intros. destruct (n =? n) eqn:Heq.
+    - reflexivity.
+    - rewrite Nat.eqb_neq in Heq.
+      exfalso. apply Heq.
+      reflexivity.
+Qed.
+
+Theorem shortest_path_helper_to_self_is_of_length_one:
+    forall g v fuel, fuel >= 1 -> (shortest_path_helper g [v] v [] fuel) = [v].
+Proof. 
+    intros. destruct fuel.
+    - inversion H.
+    - simpl. destruct (v =? v) eqn:Hx. auto. 
+    specialize (equality_of_decidable_nat v). intro. 
+    rewrite Hx in H0. inversion H0.
+Qed.
+
+Theorem shortest_path_to_self:
+    forall g v, (length g) >= 1 -> length(shortest_path g v v) = 1.
+Proof.
+    intros. simpl. unfold shortest_path. assert (length g * length g >= 1). 
+    apply a_greater_than_1_implies_a_star_a_greater_than_1. auto.
+    destruct (length g * length g) eqn:Hx.
+    - inversion H0.
+    - specialize (shortest_path_helper_to_self_is_of_length_one   g v (S n)). 
+    intro. assert (shortest_path_helper g [v] v [] (S n) = [v]).
+    apply H1. apply H0. rewrite H2. simpl. 
+    specialize (equality_of_decidable_nat v). intro. rewrite H3. auto.
+Qed.
 
 (* 
     TO Calculate the DIAMETER of the graph 
@@ -829,3 +933,336 @@ Admitted.
 
 Theorem tree_has_1_less_internal_nodes_than_leaves:
     True.
+Proof.
+Admitted.
+
+(*=============== DFS ==================*)
+
+(*  Small Step Semantics Definition of DFS *)
+
+(* 
+      Defines 3 different kinds of steps
+      -   A node that has already been visited
+      -   A node that has not yet been visited
+      -   DFS Initialization
+*)
+Inductive DfsStep : Graph * list Node * list Node -> Graph * list Node * list Node -> Prop :=
+| DfsStepVisited : forall g vis st v,
+      ~ In v vis -> DfsStep (g, vis, v :: st) (g, v :: vis, (get_children g v) ++ st)
+| DfsStepVisit : forall g vis st v,
+      In v vis -> DfsStep (g, vis, v :: st) (g, vis, st)
+| DfsStepStart : forall g v,
+      DfsStep (g, [], []) (g, [], [v]).
+
+(* 
+      Defines the properties of the small step semantics
+      -   Reflexivity
+      -   Transitivity
+*)
+Inductive DfsStepStar : Graph * list Node * list Node -> Graph * list Node * list Node -> Prop :=
+| DfsStepRefl : forall g vis st,
+      DfsStepStar (g, vis, st) (g, vis, st)
+| DfsStepStarOnce : forall g vis1 vis2 vis3 st1 st2 st3,
+      DfsStep (g, vis1, st1) (g, vis2, st2) -> DfsStepStar (g, vis2, st2) (g, vis3, st3) -> DfsStepStar (g, vis1, st1) (g, vis3, st3).
+      
+(* 
+      Now let us verify that the small step semantics defined above works on some sample graphs
+
+      Consider a graph with the following adjacency list. The graph has been illustrated below for further clarity.
+            1: 2, 5
+            2: 3, 7
+            3: 4
+            4: 9
+            5: 7
+            6: 8
+            7:
+            8:
+            9:
+
+            1 --> 2 --> 3 --> 4 --> 9
+            |     |     ^               
+            v     v     |               
+            5 --> 7 ----+               
+                  
+            6 --> 8
+*)
+
+Definition sample_graph := 
+      construct_dir_graph 9 [(1,2); (1,5); (2,3); (2,7); (3,4); (4,9); (5,7); (7,3); (6,8)].
+
+Example dfs_step_identity:
+      DfsStep(sample_graph,[],[1])(sample_graph,[1],[2;5]).
+Proof.
+      econstructor. auto.
+Qed.
+
+Example dfs_identity_step_star:
+      DfsStepStar(sample_graph,[],[1])(sample_graph,[1],[2;5]).
+Proof.
+      repeat econstructor. auto.
+Qed.
+
+Lemma dfs_step_from_one_to_four:
+      exists vis st, DfsStepStar(sample_graph, [], [1])(sample_graph, 4::vis, st).
+Proof.
+      repeat econstructor. 
+      - auto.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+Qed.
+
+Lemma dfs_step_from_five_to_nine:
+      exists vis st, DfsStepStar(sample_graph, [], [5])(sample_graph, 9::vis, st).
+Proof.
+      repeat econstructor. 
+      - auto.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+      - unfold not. simpl. intros. destruct H. lia. lia.
+Qed.
+
+
+
+(* 
+      Next we define a fuel based implementation of the dfs algorithm
+*)
+
+Fixpoint dfs_helper (g : Graph) (start: Node) (fuel : nat) (visited : list Node) : list Node :=
+    match fuel with
+    | 0 => visited
+    | S fuel' =>
+          if (existsb (Nat.eqb start) visited)
+			then visited
+			else 
+			let visited' := start :: visited in 
+			let children := get_children g start in
+			fold_left (fun acc v => dfs_helper g v fuel' acc) children visited'
+    end.
+
+Definition dfs (g : Graph) (start : Node) : list Node :=
+      dfs_helper g start (length g) [].
+
+(* 
+      Again, let us verify the behaviour of the fuel based definition of DFS
+      Consider the sample graph from above.
+
+            1 --> 2 --> 3 --> 4 --> 9
+            |     |     ^               
+            v     v     |               
+            5 --> 7 ----+               
+                  
+            6 --> 8
+*)
+
+Lemma dfs_from_one_visits_one:
+      In 1 (dfs sample_graph 1).
+Proof.
+      simpl. lia.
+Qed.
+
+Lemma dfs_from_one_visits_four:
+      In 4 (dfs sample_graph 1).
+Proof.
+      simpl. lia.
+Qed.
+
+Lemma dfs_from_five_visits_nine:
+      In 5 (dfs sample_graph 1).
+Proof.
+      simpl. lia.
+Qed.
+
+Lemma dfs_from_five_does_not_visit_nine:
+      ~ In 6 (dfs sample_graph 5).
+Proof.
+      simpl. unfold not. intros. 
+      destruct H. lia.
+      destruct H. lia.
+      destruct H. lia.
+      destruct H. lia.
+      destruct H. lia.
+      destruct H.
+Qed.
+
+(* 
+      Here, we prove that our step semantics for DFS only visits a node one time.
+
+      First, we define a helper lemma that helps us reason about lists.
+*)
+
+Lemma not_cons_self : forall (A : Type) (x : A) (l : list A), l <> x :: l.
+Proof.
+intros A x l.
+intro H.
+induction l as [| y l' IHl].
+- discriminate H. 
+- injection H as H1 H2. rewrite H1 in H2.
+    apply IHl in H2.
+    contradiction.
+Qed.
+
+
+(* 
+      The below theorem shows that any step dfs takes must result in only new values being added to visited.
+*)
+
+Theorem dfs_step_has_unique_values_in_visited:
+      forall g v visited stack stack', DfsStep(g, visited, stack)(g, v::visited, stack') -> ~ In v visited.
+Proof.
+      intros. repeat econstructor. 
+      intro. inversion H. subst. 
+      - contradiction. 
+      - apply not_cons_self in H5. contradiction. 
+Qed.
+
+
+(* Definition only_one_occurrence (x : Node) (lst : list Node) : Prop :=
+  forall y, In y lst -> x = y -> forall z, In z lst -> x = z.
+
+
+  Fixpoint fold_right_concat (l : list (nat * list nat)) : list nat :=
+      match l with
+      | nil => nil
+      | (x, ys) :: l' => ys ++ fold_right_concat l'
+      end.
+      Lemma in_concat_list_both_directions : forall v y l,
+      (exists l', In (v, l') l) ->
+      (exists l', In y l') ->
+      In y (fold_right_concat l).
+    Proof.
+      intros v y l H1 H2.
+      induction l as [| (x, ys) l' IH]; simpl in *.
+      - destruct H1 as [l' H].
+        contradiction.
+      - destruct H1 as [l'' H].
+        destruct H as [H | H].
+        + inversion H; subst.
+          apply in_or_app.
+          left; assumption.
+        + apply IH; assumption.
+    Qed. *)
+  
+
+(* 
+	Identifying Bipartite Graphs
+	Below is a function that decides whether a graph is bipartite
+*)
+
+(* 
+      This is bipartite helper function that splits a single connected component
+      nto left and right sets.
+*)
+Fixpoint bipartite_helper (g : Graph) (start: Node) (args: (list Node * list Node * list Node)) (fuel : nat) (which: bool) : (list Node * list Node * list Node) :=
+  match fuel with
+    | 0 => args
+    | S fuel' =>
+          let '(visited,l,r) := args in
+          if (existsb (Nat.eqb start) visited)
+          then args
+          else
+          let visited' := start :: visited in 
+          let children := get_children g start in
+          if which then
+          let left' := start :: l in 
+          let right' := (get_children g start) ++ r in 
+          fold_right (fun v a => bipartite_helper g v a fuel' (negb which) ) (visited',left',right') children
+          else 
+          let left' := (get_children g start) ++ l in 
+          let right' := start::r in 
+          fold_right (fun v a => bipartite_helper g v a fuel' (negb which) ) (visited',left',right') children
+    end.
+
+
+(* 
+      This function performs the left-right split for each component
+*)
+Fixpoint bipartite_components (g : Graph) (lg: Graph) (args: (list Node * list Node * list Node)) : (list Node * list Node * list Node):=
+  match lg with
+  | [] => args
+  | (v,e)::x => 
+    let '(visited,l,r) := (bipartite_helper g v args (length g) true) in
+    bipartite_components g x (visited,l,r)
+  end.
+  
+(* 
+      This function checks whether the final sets are disjoint
+*)
+Fixpoint bipartite_checker (g: Graph) (l: list Node) (r: list Node) : bool :=
+  match g with
+  | [] => true
+  | (v,e)::x => if (existsb (Nat.eqb v) l)
+               then if ((existsb (Nat.eqb v) r))
+               then false
+               else (bipartite_checker x l r)
+               else (bipartite_checker x l r)
+  end.
+    
+(* 
+      This function is the wrapper that checks whether a graph is bipartite
+*)
+Definition is_bipartite (g: Graph) : (bool * list Node * list Node) :=
+  let '(visited,l,r) := (bipartite_components g g ([],[],[])) in
+  match (bipartite_checker g l r) with 
+  | true => (true, l, r)
+  | false => (false, [], [])
+  end.
+  
+Definition a_bipartite_graph := 
+	construct_undir_graph 9 [(1,4); (2,4); (2,5); (3,5); (3,6); (7,8)].
+
+
+Lemma a_bipartite_graph_is_bipartite :
+      let '(i,l,r) := (is_bipartite a_bipartite_graph) in
+      i = true .
+Proof.
+      simpl. auto.
+Qed.
+
+Definition not_a_bipartite_graph := 
+	construct_undir_graph 9 [(1,4); (2,4); (2,5); (3,5); (3,6); (7,8); (5,6)].
+
+Lemma not_a_bipartite_graph_is_bipartite :
+      let '(i,l,r) := (is_bipartite not_a_bipartite_graph) in
+      i = false .
+Proof.
+      simpl. auto.
+Qed.
+
+(* 
+      Function that counts the components in a graph.
+*)
+
+Fixpoint number_components_helper (g: Graph) (lg: Graph) (visited: list Node) : nat :=
+  match lg with
+  | [] => 0
+  | (v,e)::x =>
+    if (existsb (Nat.eqb v) visited)
+    then (number_components_helper g x visited)
+    else 
+    S (number_components_helper g x (dfs_helper g v (length g) visited))
+  end.
+  
+Definition number_components (g: Graph) : nat :=
+  number_components_helper g g [].
+  
+
+Definition two_component_graph := 
+	construct_undir_graph 8 [(1,2); (2,3); (1,4); (3,4); (5,8); (5,7); (6,8) ].
+
+Lemma check_two_component_graph: 
+      number_components two_component_graph = 2.
+Proof.
+      auto.
+Qed.
+
+Definition three_component_graph := 
+	construct_undir_graph 10 [(1,2); (2,3); (1,4); (3,4); (5,8); (5,7); (6,8);  (9,10)].
+
+Lemma check_three_component_graph: 
+      number_components three_component_graph = 3.
+Proof.
+      auto.
+Qed.
+
