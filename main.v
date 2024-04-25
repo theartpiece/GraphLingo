@@ -871,6 +871,15 @@ Proof.
     intros.  apply  maximal_path_exists_in_dag in H. destruct H. 
 Admitted.
 
+Definition is_leaf (g:Graph) (v: Node) :Prop :=
+    (node_in g v) /\ (In (v, []) g).
+
+(* The following theorem requires knowledge that a path of maximum length occurs in a dag *)
+Theorem dag_has_atleast_one_leaf: 
+    forall g, is_dag g -> (exists v, is_leaf g v).
+Proof.
+Admitted.
+
 (* Forest *)
 
 Definition is_forest (g:Graph) : Prop :=
@@ -897,17 +906,4 @@ Definition is_tree (g: Graph):
 
 
 
-Definition is_leaf (g:Graph) (v: Node) :Prop :=
-    (node_in g v) /\ (In (v, []) g).
-
-(* The following theorem requires knowledge that a path of maximum length occurs in a dag *)
-Theorem dag_has_atleast_one_leaf: 
-    forall g, is_dag g -> (exists v, is_leaf g v).
-Proof.
-    (* Proof.
-    intros.  apply  maximal_path_exists_in_dag in H. destruct H. 
-Admitted. *)
-
-Proof.
-Admitted.
 
