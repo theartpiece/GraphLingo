@@ -502,7 +502,7 @@ Fixpoint dfs_helper (g : Graph) (start: Node) (fuel : nat) (visited : list Node)
 			else 
 			let visited' := start :: visited in 
 			let children := get_children g start in
-			fold_right (fun v acc => dfs_helper g v fuel' acc) visited' children
+			fold_left (fun acc v => dfs_helper g v fuel' acc) children visited'
     end.
 
 Definition dfs (g : Graph) (start : Node) : list Node :=
@@ -582,18 +582,32 @@ Proof.
 Qed.
 
 
-Definition only_one_occurrence (x : Node) (lst : list Node) : Prop :=
+(* Definition only_one_occurrence (x : Node) (lst : list Node) : Prop :=
   forall y, In y lst -> x = y -> forall z, In z lst -> x = z.
 
 
-Theorem dfs_has_unique_values_in_visited: 
-      forall g start v, let visited:= (dfs g start) in In v visited -> only_one_occurrence v visited.
-Proof.
-      intros. unfold only_one_occurrence. subst visited in H.
-      
-Qed.
-
-
+  Fixpoint fold_right_concat (l : list (nat * list nat)) : list nat :=
+      match l with
+      | nil => nil
+      | (x, ys) :: l' => ys ++ fold_right_concat l'
+      end.
+      Lemma in_concat_list_both_directions : forall v y l,
+      (exists l', In (v, l') l) ->
+      (exists l', In y l') ->
+      In y (fold_right_concat l).
+    Proof.
+      intros v y l H1 H2.
+      induction l as [| (x, ys) l' IH]; simpl in *.
+      - destruct H1 as [l' H].
+        contradiction.
+      - destruct H1 as [l'' H].
+        destruct H as [H | H].
+        + inversion H; subst.
+          apply in_or_app.
+          left; assumption.
+        + apply IH; assumption.
+    Qed. *)
+  
 
 (* 
       Shortest Path Between nodes A and B
@@ -738,91 +752,118 @@ Qed.
 	Below is a function that decides whether a graph is bipartite
 *)
 
-Fixpoint bipartite_helper (g : Graph) (visited stack left right : list Node) (fuel : nat) : (list Node * list Node * list Node) :=
-    match fuel with
-    | 0 => visited
+(* 
+      This is bipartite helper function that splits a single connected component
+      nto left and right sets.
+*)
+Fixpoint bipartite_helper (g : Graph) (start: Node) (args: (list Node * list Node * list Node)) (fuel : nat) (which: bool) : (list Node * list Node * list Node) :=
+  match fuel with
+    | 0 => args
     | S fuel' =>
-          match stack with
-          | [] => (visited, left, right)
-          | vertex :: rem =>
-                if (existsb (Nat.eqb vertex) visited)
-                  then dfs_helper g visited rem fuel'
-                  else dfs_helper g ([vertex] ++ visited) ((get_children g vertex) ++ rem) fuel'
-          end
+          let '(visited,l,r) := args in
+          if (existsb (Nat.eqb start) visited)
+          then args
+          else
+          let visited' := start :: visited in 
+          let children := get_children g start in
+          if which then
+          let left' := start :: l in 
+          let right' := (get_children g start) ++ r in 
+          fold_right (fun v a => bipartite_helper g v a fuel' (negb which) ) (visited',left',right') children
+          else 
+          let left' := (get_children g start) ++ l in 
+          let right' := start::r in 
+          fold_right (fun v a => bipartite_helper g v a fuel' (negb which) ) (visited',left',right') children
     end.
 
 
-Fixpoint has_intersection (l1 l2 : list nat) : bool :=
-  match l1 with
-  | nil => false 
-  | x :: xs => if existsb (Nat.eqb x) l2 then true else has_intersection xs l2
-  end.
-
-Fixpoint is_bipartite_helper (g: Graph) (left: list Node) (right: list Node) : bool * list Node * list Node := 
-	match g with
-	| nil => (true, left, right)
-	| (v,e)::xg => if (existsb (Nat.eqb v) left) then
-		(
-			if (existsb (Nat.eqb v) right) then
-			(false, left, right)
-			else if (has_intersection (get_children g v) left) then
-			(false, left, right)
-			else (is_bipartite_helper xg ((get_children g v) ++ right) (v::left))
-		)
-		else (
-			if (has_intersection (get_children g v) right) then
-			(false, left, right)
-			else (is_bipartite_helper xg ((get_children g v) ++ left) (v::right))
-		)
-	end.
-
-Definition is_bipartite (g: Graph) : bool * list Node * list Node := 
-	(is_bipartite_helper g [] []).
-
 (* 
-	Again we begin by verifying the above works on some basic graphs
-	Consider the following graphs
-	1 --- 4
-	   /
-	2 --- 5
-	   /
-	3 --- 6
-	
-	7 --- 8
-	
-	9     
+      This function performs the left-right split for each component
 *)
-
+Fixpoint bipartite_components (g : Graph) (lg: Graph) (args: (list Node * list Node * list Node)) : (list Node * list Node * list Node):=
+  match lg with
+  | [] => args
+  | (v,e)::x => 
+    let '(visited,l,r) := (bipartite_helper g v args (length g) true) in
+    bipartite_components g x (visited,l,r)
+  end.
+  
+(* 
+      This function checks whether the final sets are disjoint
+*)
+Fixpoint bipartite_checker (g: Graph) (l: list Node) (r: list Node) : bool :=
+  match g with
+  | [] => true
+  | (v,e)::x => if (existsb (Nat.eqb v) l)
+               then if ((existsb (Nat.eqb v) r))
+               then false
+               else (bipartite_checker x l r)
+               else (bipartite_checker x l r)
+  end.
+    
+(* 
+      This function is the wrapper that checks whether a graph is bipartite
+*)
+Definition is_bipartite (g: Graph) : (bool * list Node * list Node) :=
+  let '(visited,l,r) := (bipartite_components g g ([],[],[])) in
+  match (bipartite_checker g l r) with 
+  | true => (true, l, r)
+  | false => (false, [], [])
+  end.
+  
 Definition a_bipartite_graph := 
-	construct_dir_graph 4 [(1,4); (2,4)].
+	construct_undir_graph 9 [(1,4); (2,4); (2,5); (3,5); (3,6); (7,8)].
 
-Compute is_bipartite a_bipartite_graph.
 
 Lemma a_bipartite_graph_is_bipartite :
-	fst (fst (is_bipartite a_bipartite_graph)) = true.
+      let '(i,l,r) := (is_bipartite a_bipartite_graph) in
+      i = true .
 Proof.
-	unfold is_bipartite. unfold is_bipartite_helper.
+      simpl. auto.
 Qed.
 
+Definition not_a_bipartite_graph := 
+	construct_undir_graph 9 [(1,4); (2,4); (2,5); (3,5); (3,6); (7,8); (5,6)].
 
-
-
-
-
-
-
-
-
-
-
-
-Theorem dfs_implies_dfs_step_new: 
-      forall g start v fuel, 
-      In v (dfs_helper g [] [start] fuel) -> exists visited stack, DfsStepStar(g, [], [start])(g, v::visited, stack).
+Lemma not_a_bipartite_graph_is_bipartite :
+      let '(i,l,r) := (is_bipartite not_a_bipartite_graph) in
+      i = false .
 Proof.
-      intros. induction fuel.
-      - destruct H.
-      - simpl in H. induction IHfuel. inversion H0.   
-Admitted.
+      simpl. auto.
+Qed.
 
+(* 
+      Function that counts the components in a graph.
+*)
 
+Fixpoint number_components_helper (g: Graph) (lg: Graph) (visited: list Node) : nat :=
+  match lg with
+  | [] => 0
+  | (v,e)::x =>
+    if (existsb (Nat.eqb v) visited)
+    then (number_components_helper g x visited)
+    else 
+    S (number_components_helper g x (dfs_helper g v (length g) visited))
+  end.
+  
+Definition number_components (g: Graph) : nat :=
+  number_components_helper g g [].
+  
+
+Definition two_component_graph := 
+	construct_undir_graph 8 [(1,2); (2,3); (1,4); (3,4); (5,8); (5,7); (6,8) ].
+
+Lemma check_two_component_graph: 
+      number_components two_component_graph = 2.
+Proof.
+      auto.
+Qed.
+
+Definition three_component_graph := 
+	construct_undir_graph 10 [(1,2); (2,3); (1,4); (3,4); (5,8); (5,7); (6,8);  (9,10)].
+
+Lemma check_three_component_graph: 
+      number_components three_component_graph = 3.
+Proof.
+      auto.
+Qed.
