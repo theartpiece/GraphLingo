@@ -1,7 +1,5 @@
 Require Import String Arith List Lia.
 Import ListNotations.
-(* Require Import Program.
-Require Import Wf. *)
 Require Import Program.Wf.
 Module Part1.
 
@@ -11,7 +9,6 @@ Definition Edge := (prod Node Node).
 Definition EdgeList := (list Edge).
 (* Type edge. *)
 Definition Graph := list (prod Node (list Node)).
-(* Definition Graph (n : Node) (edge_list : (list Edge) ) := list (prod Node (list Edge)). *)
 
 (* TODO := add the check to avoid duplicated edge addition *)
 Fixpoint add_edge (adj : Graph) (v1 v2: Node): Graph :=
@@ -34,7 +31,6 @@ Example two_nodes_empty_graph:
 Proof.
     simpl. auto.
 Qed.
-
 
 
 (* TODO --> check that we are not adding a node that's larger than n *)
@@ -81,7 +77,6 @@ Qed.
 (* Todo  ---> Prove that construct_graph function is correct. *)
 
 
-    
 
 Fixpoint get_all_neighbors (g: Graph) (u : Node): (list Node):=
     match g with
@@ -137,7 +132,6 @@ Fixpoint is_connected (g : Graph) : Prop:=
     end.
     
     
-
 
 Example null_graph_is_connected:
     is_connected null_graph.
@@ -303,6 +297,7 @@ Fixpoint get_size (g : Graph) : nat :=
   | nil => 0
   | (v, _) :: g' => 1 + get_size g'
   end.
+
 Definition example_graph1 := construct_dir_graph 3 [(1, 2); (1, 3); (2, 1); (2, 3)]. 
 Example example_graph1_size : get_size example_graph1 = 3.
 Proof. reflexivity. Qed.
@@ -310,44 +305,6 @@ Proof. reflexivity. Qed.
 Definition example_graph2 := construct_dir_graph 2 [(1, 2)].
 Example example_graph2_size : get_size example_graph2 = 2.
 Proof. reflexivity. Qed.
-
-
-(* Function to check if two lists contain the same elements *)
-Fixpoint check_if_list_equal (l1 l2 : list Node) : bool :=
-  match l1, l2 with
-  | [], [] => true
-  | x :: xs, y :: ys =>
-    if Nat.eqb x y then check_if_list_equal xs ys else false
-  | _, _ => false
-  end.
-
-(* Graph Symmetricity: Preserving vertex edge connectivity *)
-Definition graphs_symmetric (g1 g2 : Graph) : bool :=
-  if Nat.eqb (length g1) (length g2) then
-    (* For each node in g1, the neighbors have to be same with g2 *)
-    (* forallb checks if true all elems of a list *)
-    forallb (fun '(n1, neighbors1) =>
-      match find (fun '(n2, _) => Nat.eqb n1 n2) g2 with
-      | Some (_, neighbors2) => check_if_list_equal neighbors1 neighbors2
-      | None => false
-      end
-    ) g1
-  else
-    false. (* Graphs have different number of nodes so return false right away *)
-
-(* Examples Check *)
-Definition g1 : Graph := construct_undir_graph 3 [(1, 2); (1, 2); (2, 3)].
-Definition g2 : Graph := construct_undir_graph 4 [(1, 2); (1, 2); (2, 3); (3, 4)].
-Definition g3: Graph := construct_undir_graph 3 [(1, 2); (1, 2); (2, 3)].
-Definition g4 : Graph := construct_undir_graph 3 [(1, 2); (1, 3); (2, 3)].
-
-Example symmetricity_size_differ_check : graphs_symmetric g1 g2 = false.
-Proof. reflexivity. Qed.
-Example symmetricity_check_same_neighbors : graphs_symmetric g1 g3 = true.
-Proof. reflexivity. Qed.
-Example symmetricity_check_diff_neighbors : graphs_symmetric g1 g4 = false.
-Proof. reflexivity. Qed.
-
 
 (* Non Connected graph *)
 Definition example_graph3 := construct_dir_graph 3 [(2, 3)].
@@ -357,6 +314,73 @@ Proof. reflexivity. Qed.
 Definition example_graph4: Graph := nil.
 Example example_graph4_size : get_size example_graph4 = 0.
 Proof. reflexivity. Qed.
+
+(* Correctness of size Proof *)
+Lemma get_size_correctness : forall g,
+  get_size g = length g.
+Proof.
+  intros g. induction g.
+  - simpl. reflexivity.
+  - simpl. rewrite IHg. destruct a. reflexivity.
+Qed.
+
+
+(* Helper: Function to check if two lists contain the same elements *)
+Fixpoint check_if_list_equal (l1 l2 : list Node) : bool :=
+  match l1, l2 with
+  | [], [] => true
+  | x :: xs, y :: ys =>
+    if Nat.eqb x y then check_if_list_equal xs ys else false
+  | _, _ => false
+  end.
+
+(* Helper: Insertion sort for a list in Coq *)
+  Fixpoint insert (x : Node) (lst : list Node) : list Node :=
+  match lst with
+  | [] => [x]
+  | h :: t => if leb x h then x :: lst else h :: insert x t
+  end.
+Fixpoint insertion_sort (lst : list Node) : list Node :=
+  match lst with
+  | [] => []
+  | h :: t => insert h (insertion_sort t)
+  end.
+
+(* Graph Symmetricity: Preserving vertex edge connectivity *)
+Definition graphs_symmetric (g1 g2 : Graph) : bool :=
+  if Nat.eqb (get_size g1) (get_size g2) then
+    (* For each node in g1, the neighbors have to be same with g2 *)
+    (* forallb checks if true all elems of a list *)
+    forallb (fun '(n1, neighbors1) =>
+      match find (fun '(n2, _) => Nat.eqb n1 n2) g2 with
+      | Some (_, neighbors2) => check_if_list_equal (insertion_sort neighbors1) (insertion_sort neighbors2)
+      | None => false
+      end
+    ) g1 
+  else
+    false. (* Graphs have different number of nodes so return false right away *)
+
+(* Examples Check *)
+Definition g1 : Graph := construct_dir_graph 3 [(1, 2); (1, 3); (2, 3)].
+Definition g2 : Graph := construct_dir_graph 4 [(1, 2); (1, 3); (2, 3); (3, 4)].
+Definition g3: Graph := construct_dir_graph 3 [(1, 3); (2, 3); (1, 2)]. (* same as g1, but diff order *)
+Definition g4 : Graph := construct_dir_graph 3 [(1, 2); (2, 1); (2, 3)].
+
+Example symmetricity_size_differ_check : graphs_symmetric g1 g2 = false.
+Proof. reflexivity. Qed.
+Example symmetricity_check_same_neighbors : graphs_symmetric g1 g3 = true.
+Proof. reflexivity. Qed.
+Example symmetricity_check_diff_neighbors : graphs_symmetric g1 g4 = false.
+Proof. reflexivity. Qed.
+
+(* Additional Lemma: If graph are symmetric, then they should be of same size *)
+Lemma if_symmetric_same_size : forall g g',
+  graphs_symmetric g g' = true -> get_size g = get_size g'.
+Proof.
+    intros.
+    induction g.
+    - unfold graphs_symmetric in *. 
+Admitted.
 
 (* Implementing degrees of vertices *)
 Fixpoint degree (g : Graph) (v : Node) : nat :=
@@ -406,19 +430,18 @@ Proof.
 Qed.
 
 
-(* The degree of vertices of a graph increases when we add an edge *)
+(* Additional Lemma: The degree of vertices of a graph increases when we add an edge *)
 Lemma degree_add_edge : forall g v1 v2,
-  (* In v (fst (split g)) -> *)
-  (~ In v2 (get_children g v1)) -> degree (add_edge g v1 v2) v1 = S (degree g v1).
+  (~ In v2 (get_children g v1)) -> degree (add_edge g v1 v2) v1 = S (degree g v2).
 Proof.
-    intros.
-    destruct H. destruct get_children.
-    - simpl. 
-
+    intros. 
+    destruct H. destruct (get_children g v1).
+    - admit.
+    - inversion l. subst.
+      * left. auto.
 Admitted.
 
 (* Property of Graph: The sum of degrees in an undirected graph equals twice the number of edges *)
-
 (* Helper to get sum of degrees in a graph *)
 Fixpoint sum_of_degrees_undirected (g : Graph) : nat :=
   match g with
@@ -436,8 +459,6 @@ Definition num_edges_undirected (g : Graph) : nat :=
 
 Definition example_complex_undir_graph := 
   construct_undir_graph 4 [(1, 2); (1, 3); (2, 3); (2, 4); (3, 4)].
-(* Compute(sum_of_degrees_undirected example_complex_undir_graph).
-Compute(num_edges_undirected example_complex_undir_graph). *)
 
 Theorem sum_of_degrees_equals_twice_edges : forall (g : Graph), 
     sum_of_degrees_undirected g = 2 * num_edges_undirected g.
@@ -456,8 +477,6 @@ Proof.
     + apply Nat.neq_succ_0.
       apply Nat.lt_0_succ. *)
 Admitted.
-
-(* ----------------------------------------------------------------------- *)
 
 (* For Directed Graphs: In-degree and Out-degree *)
 
@@ -492,17 +511,9 @@ Example out_degree_example_dir_graph_2:
   out_degree example_dir_graph2 4 = 1.
 Proof. reflexivity. Qed.
 
-(* Definition sum_in_degree (g : Graph) : nat := 
-Definition sum_out_degree (g : Graph) : nat := 
-Lemma sum_in_out_degrees_equal : forall g, forall v,
-  sum_in_degree g = sum_out_degree g.
-Proof.
-Admitted. *)
-
 (* Property: Sum of in_degrees out_degs is even *)
 Definition even_sum_degrees_property (g : Graph) : Prop :=
   forall v, (in_degree g v + out_degree g v) mod 2 = 0.
-
 (* Proof Property *)
 Lemma even_sum_degrees_directed_graph : forall g : Graph,
   even_sum_degrees_property g.
@@ -514,7 +525,6 @@ Proof.
   - intros v. unfold in_degree in *. unfold out_degree in *.
     simpl. destruct a.
     (* simpl. rewrite IHg.  *)
-  
   destruct (Nat.eq_dec n v) eqn:Eqn.
     + subst.
       (* apply IHg.
@@ -577,20 +587,15 @@ Proof.
     destruct H.
 Qed.
 
-(* see other way: bool*)
-(* Fixpoint Unique (l : list Node) : Prop :=
-  match l with
-  | [] => True
-  | x :: xs => ~ In x xs /\ Unique xs
-  end. *)
-(* Trying to implement as a bool so easier to proove in Coq*)
+
+(* Helper: Function to check if a list is Unique *)
 Fixpoint Unique (l : list Node) : bool :=
 match l with
   | [] => true
   | x :: xs => if existsb (Nat.eqb x) xs then false else Unique xs
 end.
 
-
+(* Additional Lemma: The bfs output path from a source is unique *)
 Lemma bfs_unique_visited : forall (g : Graph) (source : Node),
     Unique (bfs g source) = true.
 Proof.
@@ -614,29 +619,18 @@ Proof.
         *** fold Unique in IHl0. fold Unique in IHl.  admit.
     * apply IHl. *)
 Admitted.
-
+(* Additional Lemma: Termination of BFS *)
 Lemma bfs_terminates : forall (g : Graph) (source : Node),
   exists nodes : list Node, bfs g source = nodes.
 Proof.
   intros. unfold bfs.
   induction (get_size g).
   - exists []. reflexivity.
-  - simpl.
-Admitted.
-  
-Lemma bfs_never_more_than_size : forall (g: Graph) (source : Node), 
-  (get_size g >= 1) -> (get_size g) >= length (bfs g source).
-Proof.
-  intros.
-  induction bfs.
-  - simpl. lia.
-  - destruct l.
-    * apply H.
-    (* * eassumption. rewrite <- IHl.   *)
+  - simpl. inversion IHn. inversion H. subst.
 Admitted.
 
 
-(* Function to get all pairs of nodes *)
+(* Helper: Function to get all pairs of nodes *)
 Fixpoint all_pairs (l : list Node) : list (Node * Node) :=
   match l with
   | nil => nil
@@ -688,15 +682,14 @@ Definition shortest_path (g: Graph) (src: Node) (dst: Node) : list Node :=
 
 (* 
     TO Calculate the DIAMETER of the graph 
-    We just assume that the diameter will be calculated only for connected graphs. ??
+    We just assume that the diameter will be calculated only for connected graphs.
     Diameter = longest shortest path between any 2 pair of nodes
     - need the shortest distance between all pair of nodes
     - Then need the max value among all those
 *)
 
 Definition diameter (g : Graph) : nat :=
-  let all_nodes := seq 1 (length g) in (* This can be done using a better helper function*)
-  let pairs := all_pairs all_nodes in
+  let pairs := all_pairs (seq 1 (length g)) in
   let diameters := map (fun '(src, dst) => length (shortest_path g src dst)) pairs in
   fold_right max 0 diameters.
 
